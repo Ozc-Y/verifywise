@@ -6,18 +6,21 @@ import React, {
   useCallback,
   useMemo,
   FC,
+  useContext,
 } from "react";
 import { Box, Stack, Typography, useTheme } from "@mui/material";
+import Grid from '@mui/material/Grid2';
 import { NoProjectBox, styles } from "./styles";
 import emptyState from "../../assets/imgs/empty-state.svg";
 import { getAllEntities } from "../../../application/repository/entity.repository";
 import { ProjectCardProps } from "../../components/ProjectCard";
-import useProjectStatus, {
+import {
   Assessments,
   Controls,
 } from "../../../application/hooks/useProjectStatus";
 import VWSkeleton from "../../vw-v2-components/Skeletons";
 import { Card } from "../../components/ProjectCard/styles";
+import { VerifyWiseContext } from "../../../application/contexts/VerifyWise.context";
 
 // Lazy load components
 const ProjectCard = lazy(() => import("../../components/ProjectCard"));
@@ -26,9 +29,10 @@ const CreateProjectForm = lazy(
   () => import("../../components/CreateProjectForm")
 );
 const MetricSection = lazy(() => import("../../components/MetricSection"));
+const Alert = lazy(() => import("../../components/Alert"));
 
 // Custom hook for fetching projects
-const useProjects = (isNewProject: boolean, resetIsNewProject: () => void) => {
+const useProjects = (isNewProject: boolean, newProjectData: object, resetIsNewProject: () => void) => {
   const [projects, setProjects] = useState<ProjectCardProps[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +60,16 @@ const useProjects = (isNewProject: boolean, resetIsNewProject: () => void) => {
         }
       });
     return () => controller.abort();
-  }, [isNewProject]);
+  }, []);
+
+  useEffect(() => {
+    if (isNewProject && newProjectData) {
+      setProjects((prevProjects) => [
+        ...(prevProjects || []),
+        ...(Array.isArray(newProjectData) ? newProjectData : [newProjectData]),
+      ]);
+    }
+  }, [isNewProject, newProjectData]);
 
   return { projects, error, isLoading };
 };
@@ -68,15 +81,17 @@ interface HomeProps {
 const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
   const theme = useTheme();
   const [isNewProject, setIsNewProjectCreate] = useState(false);
-  const { projects, error, isLoading } = useProjects(isNewProject, () =>
+  const [newProjectData, setNewProjectData] = useState({});
+  const { projects, error, isLoading } = useProjects(isNewProject, newProjectData, () =>
     setIsNewProjectCreate(false)
   );
-  const userId = "1";
-  const {
-    projectStatus,
-    loading: loadingProjectStatus,
-    error: errorFetchingProjectStatus,
-  } = useProjectStatus({ userId });
+  const { projectStatus, loadingProjectStatus, errorFetchingProjectStatus } = useContext(VerifyWiseContext);
+
+  const [alert, setAlert] = useState<{
+    variant: "success" | "info" | "warning" | "error";
+    title?: string;
+    body: string;
+  } | null>(null);
 
   const NoProjectsMessage = useMemo(
     () => (
@@ -99,12 +114,20 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
     [theme]
   );
 
-  const newProjectChecker = (
-    data: boolean | ((prevState: boolean) => boolean)
-  ) => {
-    setIsNewProjectCreate(data);
+  const newProjectChecker = (data: { isNewProject: boolean; project: any }) => {
+    setIsNewProjectCreate(data.isNewProject);
+    setNewProjectData(data.project);
+
     if (onProjectUpdate) {
       onProjectUpdate();
+      setAlert({
+        variant: "success",
+        body: "Project created successfully",
+      });
+
+      setTimeout(() => {
+        setAlert(null);
+      }, 2500);
     }
   };
 
@@ -123,7 +146,7 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
           popupId="create-project-popup"
           popupContent={
             <CreateProjectForm
-              setIsNewProjectCreate={newProjectChecker}
+              onNewProject={newProjectChecker}
               closePopup={() => setAnchor(null)}
             />
           }
@@ -164,9 +187,9 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
 
   const assessments: Assessments = {
     percentageComplete:
-      (projectStatus.assessments.allDoneAssessments ??
-        0 / projectStatus.assessments.allTotalAssessments ??
-        1) * 100,
+      projectStatus.assessments.allTotalAssessments
+        ? (projectStatus.assessments.allDoneAssessments ?? 0) * 100 / projectStatus.assessments.allTotalAssessments
+        : 0,
     allDoneAssessments: projectStatus.assessments.allDoneAssessments,
     allTotalAssessments: projectStatus.assessments.allTotalAssessments,
     projects: projectStatus.assessments.projects,
@@ -174,38 +197,27 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
 
   const controls: Controls = {
     percentageComplete:
-      (projectStatus.controls.allDoneSubControls ??
-        0 / projectStatus.controls.allTotalSubControls ??
-        1) * 100,
+      projectStatus.controls.allTotalSubControls
+        ? (projectStatus.controls.allDoneSubControls ?? 0) * 100 / projectStatus.controls.allTotalSubControls
+        : 0,
     allDoneSubControls: projectStatus.controls.allDoneSubControls,
     allTotalSubControls: projectStatus.controls.allTotalSubControls,
     projects: projectStatus.controls.projects,
   };
 
-  const getProjectData = (projectId: number) => {
-    const projectAssessments = assessments.projects.find(
-      (project: any) => project.projectId === projectId
-    ) ?? {
-      doneAssessments: 0,
-      projectId,
-      totalAssessments: 1,
-    };
-
-    const projectControls = controls.projects.find(
-      (project: any) => project.projectId === projectId
-    ) ?? {
-      doneSubControls: 0,
-      projectId,
-      totalSubControls: 0,
-    };
-
-    return {
-      projectAssessments,
-      projectControls,
-    };
-  };
   return (
     <Box>
+      {alert && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <Alert
+            variant={alert.variant}
+            title={alert.title}
+            body={alert.body}
+            isToast={true}
+            onClick={() => setAlert(null)}
+          />
+        </Suspense>
+      )}
       <Box sx={styles.projectBox}>
         <Typography variant="h1" component="div" sx={styles.title}>
           Projects overview
@@ -223,7 +235,7 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
       ) : null}
       {projects && projects.length > 0 ? (
         <>
-          <Stack direction="row" justifyContent="space-between" spacing={15}>
+          <Stack direction="row" justifyContent={projects.length <= 3 ? "space-between" : "flex-start"} flexWrap={projects.length > 3 ? "wrap" : "nowrap"} spacing={15}>
             <Suspense
               fallback={
                 <Card>
@@ -239,13 +251,30 @@ const Home: FC<HomeProps> = ({ onProjectUpdate }) => {
                 </Card>
               }
             >
+            {projects.length <= 3 ? <>
               {projects.map((item: ProjectCardProps) => (
                 <ProjectCard
                   key={item.id}
                   {...item}
-                  {...getProjectData(item.id)}
+                  id={item.id}
+                  assessments={assessments}
+                  controls={controls}
                 />
               ))}
+            </> : <>
+              <Grid sx={{ width: "100%" }} container spacing={{ xs: 2, md: 3 }} columns={{ xs: 4, sm: 8, md: 12 }}>
+                {projects.map((item: ProjectCardProps) => (
+                  <Grid key={item.id} size={{ xs: 4, sm: 8, md: 4 }}>
+                    <ProjectCard
+                      {...item}
+                      id={item.id}
+                      assessments={assessments}
+                      controls={controls}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </>}
             </Suspense>
           </Stack>
           {(["compliance"] as const).map(

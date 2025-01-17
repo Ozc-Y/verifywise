@@ -1,9 +1,12 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState, useEffect } from "react";
 import { Stack, Button, Typography, useTheme, Paper } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import singleTheme from "../../themes/v1SingleTheme";
 import { Theme } from "@mui/material/styles";
 import { SxProps } from "@mui/system";
+import PageTour from "../../components/PageTour";
+import CustomStep from "../../components/PageTour/CustomStep";
+import { getAllEntities } from "../../../application/repository/entity.repository";
 
 // Define styles outside the component to avoid recreation on each render
 const usePaperStyle = (theme: Theme): SxProps<Theme> => ({
@@ -26,6 +29,60 @@ const Assessment = memo(() => {
   const navigate = useNavigate();
   const theme = useTheme();
   const paperStyle = usePaperStyle(theme);
+  const [runAssessmentTour, setRunAssessmentTour] = useState(false);
+  const [assessmentsStatus, setAssessmentsStatus] = useState({
+    allPendingAssessments: 0,
+    allDoneAssessments: 0,
+    AssessmentsCompletion: 0,
+  });
+
+  const assessmentSteps = [
+    {
+      target: '[data-joyride-id="assessment-status"]',
+      content: (
+        <CustomStep body="Check the status of your assessment tracker here." />
+      ),
+      placement: "left" as const,
+    },
+    {
+      target: '[data-joyride-id="go-to-assessments"]',
+      content: (
+        <CustomStep body="Go to your assessments and start filling in the assessment questions for you project." />
+      ),
+      placement: "bottom" as const,
+    },
+  ];
+
+  const fetchComplianceTrackerCalculation = async () => {
+    try {
+      const response = await getAllEntities({
+        routeUrl: "/users/1/calculate-progress",
+      });
+
+      setAssessmentsStatus({
+        allPendingAssessments:
+          (response.allTotalAssessments ?? 0) -
+          (response.allDoneAssessments ?? 0),
+        allDoneAssessments: response.allDoneAssessments,
+        AssessmentsCompletion: Number(
+          (
+            ((response.allDoneAssessments ?? 0) /
+              (response.allTotalAssessments ?? 1)) *
+            100
+          ).toFixed(2)
+        ),
+      });
+
+      console.log("Response for fetchComplianceTrackerCalculation:", response);
+    } catch (error) {
+      console.error("Error fetching compliance tracker:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchComplianceTrackerCalculation();
+    setRunAssessmentTour(true);
+  }, []);
 
   const handleAssessment = useCallback(() => {
     navigate("/all-assessments");
@@ -33,11 +90,17 @@ const Assessment = memo(() => {
 
   return (
     <div className="assessment-page">
+      <PageTour
+        steps={assessmentSteps}
+        run={runAssessmentTour}
+        onFinish={() => setRunAssessmentTour(false)}
+      />
       <Stack
         gap={theme.spacing(2)}
         sx={{ backgroundColor: theme.palette.background.alt }}
       >
         <Typography
+          data-joyride-id="assessment-status"
           variant="h1"
           component="div"
           fontWeight="bold"
@@ -62,7 +125,7 @@ const Assessment = memo(() => {
               fontSize="16px"
               color={theme.palette.text.primary}
             >
-              85%
+              {assessmentsStatus.AssessmentsCompletion} {" %"}
             </Typography>
           </Paper>
           <Paper sx={paperStyle}>
@@ -86,7 +149,7 @@ const Assessment = memo(() => {
               fontSize="16px"
               color={theme.palette.text.primary}
             >
-              12
+              {assessmentsStatus.allDoneAssessments}
             </Typography>
           </Paper>
         </Stack>
@@ -105,6 +168,7 @@ const Assessment = memo(() => {
         </Typography>
         <Stack>
           <Button
+            data-joyride-id="go-to-assessments"
             disableRipple={
               theme.components?.MuiButton?.defaultProps?.disableRipple
             }
