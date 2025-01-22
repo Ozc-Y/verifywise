@@ -55,7 +55,9 @@ const ProjectView = ({ project = projectOverviewData }) => {
                     <TabPanel value="vendor-risks" sx={{ p: "32px 0 0" }}>
                         <RisksView risksSummary={vendorRisks} risksData={vendorRisksData} title="Vendor" />
                     </TabPanel>
-                    <TabPanel value="settings" sx={{ p: "32px 0 0" }}><ProjectSettings setTabValue={setValue}/></TabPanel>
+                    <TabPanel value="settings" sx={{ p: "32px 0 0" }}>
+                        <ProjectSettings setTabValue={setValue}/>
+                    </TabPanel>
                 </TabContext>
             </Stack>
         </Stack>

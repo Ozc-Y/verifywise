@@ -218,7 +218,7 @@ const AddNewVendor: React.FC<AddNewVendorProps> = ({
      */
     const handleSave = () => {
         if (validateForm()) {
-            setIsModalOpen(true);
+            existingVendor ? setIsModalOpen(true) : handleOnSave();  
         }
     };
 
@@ -362,11 +362,16 @@ const AddNewVendor: React.FC<AddNewVendorProps> = ({
                     onVendorChange();
                     setIsOpen();
                 }, 1000);
-            } else if (response.status == 400) {
+            } else if (response.status === 400 || response.status === 500) {
                 setAlert({
                     variant: "error",
                     body: response.data.data.message,
                 });
+                setTimeout(() => {
+                    setAlert(null);
+                    onVendorChange();
+                    setIsOpen();
+                }, 1000);
             }
         });
     };
@@ -381,7 +386,6 @@ const AddNewVendor: React.FC<AddNewVendorProps> = ({
         updatedVendorDetails: VendorDetails
     ) => {
         // Make a call to backend and update the vendor'
-        debugger;
         console.log("Edit Vendor", vendorId, updatedVendorDetails);
         await updateEntityById({
             routeUrl: `/vendors/${vendorId}`,
@@ -589,7 +593,7 @@ const AddNewVendor: React.FC<AddNewVendorProps> = ({
                     date={
                         values.vendorDetails.reviewDate
                             ? dayjs(values.vendorDetails.reviewDate)
-                            : null
+                            : dayjs(new Date())
                     }
                     handleDateChange={handleDateChange}
                 />
@@ -774,7 +778,12 @@ const AddNewVendor: React.FC<AddNewVendorProps> = ({
             )}
             <Modal
                 open={isOpen}
-                onClose={() => setIsOpen()}
+                onClose={(_event, reason) => {
+                    if (reason !== 'backdropClick') {
+                      setIsOpen();
+                    }
+                  }}
+                disableEscapeKeyDown
                 sx={{ overflowY: "scroll" }}
             >
                 <Stack
