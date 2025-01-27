@@ -3,14 +3,22 @@ import ProgressBar from "../../../components/ProjectCard/ProgressBar";
 import { FC, memo, useCallback, useContext, useMemo } from "react";
 import { formatDate } from "../../../tools/isoDateToString";
 import Risks from "../../../components/Risks";
-import { ProjectOverview } from "../../../mocks/projects/project-overview.data";
 import { useSearchParams } from "react-router-dom";
 import useProjectData from "../../../../application/hooks/useProjectData";
 import { VerifyWiseContext } from "../../../../application/contexts/VerifyWise.context";
 import getProjectData from "../../../../application/tools/getProjectData";
 
+export type RiskData = {
+  veryHighRisks: number;
+  highRisks: number;
+  mediumRisks: number;
+  lowRisks: number;
+  veryLowRisks: number;
+};
+
 interface OverviewProps {
-  mocProject: ProjectOverview;
+  projectRisksSummary: RiskData;
+  vendorRisksSummary: RiskData;
 }
 
 interface ProgressBarCardProps {
@@ -19,9 +27,9 @@ interface ProgressBarCardProps {
   completed: number;
 }
 
-const Overview: FC<OverviewProps> = memo(({ mocProject }) => {
+const Overview: FC<OverviewProps> = memo(({ projectRisksSummary, vendorRisksSummary }) => {
   const [searchParams] = useSearchParams();
-  const projectId = searchParams.get("projectId") ?? "2"; // default project ID is 2
+  const projectId = searchParams.get("projectId") ?? "1"; // default project ID is 2
   const { project, error, isLoading } = useProjectData({ projectId });
   const theme = useTheme();
   const { projectStatus } = useContext(VerifyWiseContext);
@@ -36,9 +44,6 @@ const Overview: FC<OverviewProps> = memo(({ mocProject }) => {
     assessments: projectStatus.assessments,
     controls: projectStatus.controls,
   });
-
-  const { projectRisks, vendorRisks } =
-    mocProject;
 
   const styles = useMemo(
     () => ({
@@ -137,7 +142,7 @@ const Overview: FC<OverviewProps> = memo(({ mocProject }) => {
         >
           Project risks
         </Typography>
-        <Risks {...projectRisks} />
+        <Risks {...projectRisksSummary} />
       </Stack>
       <Stack>
         <Typography
@@ -145,7 +150,7 @@ const Overview: FC<OverviewProps> = memo(({ mocProject }) => {
         >
           Vendor risks
         </Typography>
-        <Risks {...vendorRisks} />
+        <Risks {...vendorRisksSummary} />
       </Stack>
     </Stack>
   );
